@@ -5,9 +5,8 @@
 set -euo pipefail
 
 BARECLAW_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-LOG="/tmp/bareclaw-test-message.log"
 PORT="${BARECLAW_PORT:-3000}"
-COUNTER_FILE="/tmp/bareclaw-test-counter"
+RUNTIME_DIR="${HOME}/.bareclaw"
 
 # Load config from .env if available
 TOKEN=""
@@ -18,7 +17,13 @@ if [ -f "$BARECLAW_DIR/.env" ]; then
   if [ -n "$ALLOWED" ]; then
     CHANNEL="tg-${ALLOWED%%,*}"
   fi
+  _rd=$(grep -E '^BARECLAW_RUNTIME_DIR=' "$BARECLAW_DIR/.env" | cut -d= -f2-)
+  [ -n "$_rd" ] && RUNTIME_DIR="${_rd/#\~/$HOME}"
 fi
+
+mkdir -p "$RUNTIME_DIR"
+LOG="$RUNTIME_DIR/test-message.log"
+COUNTER_FILE="$RUNTIME_DIR/test-counter"
 CHANNEL="${CHANNEL:-${1:?Usage: test-message.sh [channel]}}"
 
 # Increment counter

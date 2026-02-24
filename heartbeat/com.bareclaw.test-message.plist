@@ -14,8 +14,8 @@
     <key>RunAtLoad</key>
     <true/>
     <key>StandardOutPath</key>
-    <string>/tmp/bareclaw-test-message-stdout.log</string>
+    <string>__RUNTIME_DIR__/test-message-stdout.log</string>
     <key>StandardErrorPath</key>
-    <string>/tmp/bareclaw-test-message-stderr.log</string>
+    <string>__RUNTIME_DIR__/test-message-stderr.log</string>
 </dict>
 </plist>

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Template plist. install.sh replaces __HEARTBEAT_SCRIPT__ with the
-  absolute path to heartbeat.sh before copying to ~/Library/LaunchAgents/.
+  Template plist. install.sh replaces __HEARTBEAT_SCRIPT__ and __RUNTIME_DIR__
+  before copying to ~/Library/LaunchAgents/.
 -->
 <plist version="1.0">
 <dict>
@@ -19,9 +19,9 @@
 	<integer>3600</integer>
 
 	<key>StandardOutPath</key>
-	<string>/tmp/bareclaw-heartbeat-launchd.log</string>
+	<string>__RUNTIME_DIR__/heartbeat-launchd.log</string>
 	<key>StandardErrorPath</key>
-	<string>/tmp/bareclaw-heartbeat-launchd.log</string>
+	<string>__RUNTIME_DIR__/heartbeat-launchd.log</string>
 
 	<key>RunAtLoad</key>
 	<false/>

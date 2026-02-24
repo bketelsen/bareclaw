@@ -7,7 +7,17 @@
 set -euo pipefail
 
 HEARTBEAT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BARECLAW_DIR="$(cd "$HEARTBEAT_DIR/.." && pwd)"
 HEARTBEAT_SCRIPT="$HEARTBEAT_DIR/heartbeat.sh"
+RUNTIME_DIR="${HOME}/.bareclaw"
+
+# Read BARECLAW_RUNTIME_DIR from .env if available
+if [ -f "$BARECLAW_DIR/.env" ]; then
+  _rd=$(grep -E '^BARECLAW_RUNTIME_DIR=' "$BARECLAW_DIR/.env" | cut -d= -f2-)
+  [ -n "$_rd" ] && RUNTIME_DIR="${_rd/#\~/$HOME}"
+fi
+
+mkdir -p "$RUNTIME_DIR"
 
 if [ ! -f "$HEARTBEAT_SCRIPT" ]; then
   echo "Error: $HEARTBEAT_SCRIPT not found"
@@ -35,8 +45,8 @@ case "$OS" in
       launchctl unload "$PLIST_DST" 2>/dev/null || true
     fi
 
-    # Template the plist with the absolute path to heartbeat.sh
-    sed "s|__HEARTBEAT_SCRIPT__|$HEARTBEAT_SCRIPT|g" "$PLIST_TEMPLATE" > "$PLIST_DST"
+    # Template the plist with absolute paths
+    sed -e "s|__HEARTBEAT_SCRIPT__|$HEARTBEAT_SCRIPT|g" -e "s|__RUNTIME_DIR__|$RUNTIME_DIR|g" "$PLIST_TEMPLATE" > "$PLIST_DST"
     launchctl load "$PLIST_DST"
 
     echo "[heartbeat] Installed (launchd). Fires every hour."
@@ -76,4 +86,4 @@ case "$OS" in
     ;;
 esac
 
-echo "[heartbeat] Logs: /tmp/bareclaw-heartbeat.log"
+echo "[heartbeat] Logs: $RUNTIME_DIR/heartbeat.log"

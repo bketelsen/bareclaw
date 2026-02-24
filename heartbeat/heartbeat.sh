@@ -6,13 +6,18 @@
 BARECLAW_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 BARECLAW_PORT="${BARECLAW_PORT:-3000}"
 BARECLAW_URL="http://localhost:$BARECLAW_PORT"
-LOG="/tmp/bareclaw-heartbeat.log"
+RUNTIME_DIR="${HOME}/.bareclaw"
 
-# Load token from .env if available
+# Load config from .env if available
 BARECLAW_HTTP_TOKEN=""
 if [ -f "$BARECLAW_DIR/.env" ]; then
   BARECLAW_HTTP_TOKEN=$(grep -E '^BARECLAW_HTTP_TOKEN=' "$BARECLAW_DIR/.env" | cut -d= -f2-)
+  _rd=$(grep -E '^BARECLAW_RUNTIME_DIR=' "$BARECLAW_DIR/.env" | cut -d= -f2-)
+  [ -n "$_rd" ] && RUNTIME_DIR="${_rd/#\~/$HOME}"
 fi
+
+mkdir -p "$RUNTIME_DIR"
+LOG="$RUNTIME_DIR/heartbeat.log"
 
 # Build auth args for curl
 AUTH_ARGS=()
@@ -33,7 +38,7 @@ if ! server_alive; then
   cd "$BARECLAW_DIR"
 
   # Use npm run dev in the background. Detach so launchd doesn't track it.
-  nohup npm run dev >> /tmp/bareclaw-server.log 2>&1 &
+  nohup npm run dev >> "$RUNTIME_DIR/server.log" 2>&1 &
   SERVER_PID=$!
   log "Started server (pid $SERVER_PID), waiting for it to come up..."
 
