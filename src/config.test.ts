@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { loadConfig } from './config.js';
+import { loadConfig, sanitizeChannel } from './config.js';
 
 describe('loadConfig', () => {
   const originalEnv = { ...process.env };
@@ -18,6 +18,8 @@ describe('loadConfig', () => {
   it('returns sensible defaults', () => {
     const config = loadConfig();
     expect(config.port).toBe(3000);
+    expect(config.host).toBe('127.0.0.1');
+    expect(config.runtimeDir).toMatch(/\.bareclaw$/);
     expect(config.maxTurns).toBe(25);
     expect(config.timeoutMs).toBe(0);
     expect(config.httpToken).toBeUndefined();
@@ -25,6 +27,16 @@ describe('loadConfig', () => {
     expect(config.allowedUsers).toEqual([]);
     expect(config.sessionFile).toBe('.bareclaw-sessions.json');
     expect(config.allowedTools).toBe('Read,Glob,Grep,Bash,Write,Edit,Skill,Task');
+  });
+
+  it('reads host from env', () => {
+    process.env.BARECLAW_HOST = '0.0.0.0';
+    expect(loadConfig().host).toBe('0.0.0.0');
+  });
+
+  it('reads runtime dir from env', () => {
+    process.env.BARECLAW_RUNTIME_DIR = '/tmp/bareclaw-test';
+    expect(loadConfig().runtimeDir).toBe('/tmp/bareclaw-test');
   });
 
   it('reads port from env', () => {
@@ -62,5 +74,32 @@ describe('loadConfig', () => {
     const config = loadConfig();
     expect(config.cwd).not.toContain('~');
     expect(config.cwd).toMatch(/\/projects$/);
+  });
+});
+
+describe('sanitizeChannel', () => {
+  it('allows alphanumeric, dash, and underscore', () => {
+    expect(sanitizeChannel('tg-12345')).toBe('tg-12345');
+    expect(sanitizeChannel('http')).toBe('http');
+    expect(sanitizeChannel('my_channel')).toBe('my_channel');
+  });
+
+  it('replaces path traversal characters', () => {
+    expect(sanitizeChannel('../../etc/passwd')).toBe('______etc_passwd');
+    expect(sanitizeChannel('../foo')).toBe('___foo');
+  });
+
+  it('replaces dots and slashes', () => {
+    expect(sanitizeChannel('foo.bar/baz')).toBe('foo_bar_baz');
+  });
+
+  it('replaces shell metacharacters', () => {
+    expect(sanitizeChannel('foo;rm -rf /')).toBe('foo_rm_-rf__');
+    expect(sanitizeChannel('$(whoami)')).toBe('__whoami_');
+  });
+
+  it('truncates long channel names', () => {
+    const long = 'a'.repeat(200);
+    expect(sanitizeChannel(long).length).toBe(128);
   });
 });

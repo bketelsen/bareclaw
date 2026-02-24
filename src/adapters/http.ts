@@ -1,11 +1,21 @@
 import express, { type Router, type Request, type Response, type NextFunction } from 'express';
-import type { Config } from '../config.js';
+import { type Config, sanitizeChannel } from '../config.js';
 import type { ProcessManager } from '../core/process-manager.js';
 import type { ChannelContext, SendMessageRequest } from '../core/types.js';
 import type { PushRegistry } from '../core/push-registry.js';
 
 export function createHttpAdapter(config: Config, processManager: ProcessManager, restart: () => void, pushRegistry: PushRegistry): Router {
   const router = express.Router();
+
+  // Block cross-origin requests — browsers send Origin on cross-site fetches.
+  // Legitimate API clients (curl, scripts, heartbeat) never send this header.
+  router.use((req: Request, res: Response, next: NextFunction) => {
+    if (req.headers.origin) {
+      res.status(403).json({ error: 'Cross-origin requests are not allowed' });
+      return;
+    }
+    next();
+  });
 
   // Bearer token auth middleware
   if (config.httpToken) {
@@ -30,7 +40,7 @@ export function createHttpAdapter(config: Config, processManager: ProcessManager
       return;
     }
 
-    const ch = channel || 'http';
+    const ch = sanitizeChannel(channel || 'http');
     const context: ChannelContext = { channel: ch, adapter: 'http' };
     const label = typeof messageContent === 'string'
       ? messageContent.substring(0, 80) + (messageContent.length > 80 ? '...' : '')
@@ -60,15 +70,16 @@ export function createHttpAdapter(config: Config, processManager: ProcessManager
       return;
     }
 
-    console.log(`[http] /send -> ${channel}: ${text.substring(0, 80)}${text.length > 80 ? '...' : ''}`);
+    const ch = sanitizeChannel(channel);
+    console.log(`[http] /send -> ${ch}: ${text.substring(0, 80)}${text.length > 80 ? '...' : ''}`);
 
     try {
-      const sent = await pushRegistry.send(channel, text);
+      const sent = await pushRegistry.send(ch, text);
       if (sent) {
-        res.json({ status: 'sent', channel });
+        res.json({ status: 'sent', channel: ch });
       } else {
         res.status(404).json({
-          error: `No push handler for channel: ${channel}`,
+          error: `No push handler for channel: ${ch}`,
           registered_prefixes: pushRegistry.prefixes,
         });
       }

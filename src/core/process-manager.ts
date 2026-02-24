@@ -3,7 +3,7 @@ import { connect, type Socket } from 'net';
 import { createInterface, type Interface } from 'readline';
 import { readFileSync, writeFileSync, unlinkSync } from 'fs';
 import { resolve } from 'path';
-import type { Config } from '../config.js';
+import { type Config, ensureRuntimeDir } from '../config.js';
 import type { ChannelContext, ClaudeEvent, ClaudeInput, ContentBlock, SendMessageResponse } from './types.js';
 
 export type EventCallback = (event: ClaudeEvent) => void;
@@ -61,15 +61,16 @@ export class ProcessManager {
   constructor(config: Config) {
     this.config = config;
     this.sessionFilePath = resolve(config.cwd, config.sessionFile);
+    ensureRuntimeDir(config.runtimeDir);
     this.loadSessions();
   }
 
   private socketPath(channel: string): string {
-    return `/tmp/bareclaw-${channel}.sock`;
+    return resolve(this.config.runtimeDir, `${channel}.sock`);
   }
 
   private pidFile(channel: string): string {
-    return `/tmp/bareclaw-${channel}.pid`;
+    return resolve(this.config.runtimeDir, `${channel}.pid`);
   }
 
   /**
@@ -160,6 +161,7 @@ export class ProcessManager {
       channel,
       socketPath: sockPath,
       pidFile: this.pidFile(channel),
+      logFile: resolve(this.config.runtimeDir, `${channel}.log`),
       cwd: this.config.cwd,
       maxTurns: this.config.maxTurns,
       allowedTools: this.config.allowedTools,

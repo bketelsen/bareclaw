@@ -396,6 +396,10 @@ export function createTelegramAdapter(config: Config, processManager: ProcessMan
       console.error(`[telegram] invalid chat ID in channel: ${channel}`);
       return false;
     }
+    if (!config.allowedUsers.includes(chatId)) {
+      console.error(`[telegram] push blocked — chat ${chatId} not in allowedUsers`);
+      return false;
+    }
     try {
       for (const chunk of splitText(text)) {
         await bot.telegram.sendMessage(chatId, chunk, { parse_mode: 'HTML' })

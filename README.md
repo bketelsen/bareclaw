@@ -78,7 +78,7 @@ Adapters derive channel keys from whatever their natural session boundary is. Th
 1. **Prefix with a short adapter identifier** (`http-`, `tg-`, `ws-`, etc.) to avoid collisions between adapters.
 2. **One channel per independent conversation context.** A Telegram chat, a Discord thread, a WebSocket connection — each gets its own channel.
 3. **Never hardcode a single channel for an entire adapter.** Every adapter must support multiple simultaneous channels.
-4. **Keep keys short and filesystem-safe.** Channel keys end up in Unix socket paths (`/tmp/bareclaw-<channel>.sock`), so avoid special characters.
+4. **Keep keys short and filesystem-safe.** Channel keys end up in Unix socket paths (`~/.bareclaw/<channel>.sock`). Keys are sanitized to `[a-zA-Z0-9_-]` and truncated to 128 characters.
 
 **Current adapters:**
 
@@ -155,7 +155,9 @@ All configuration is via environment variables. Everything has a sensible defaul
 
 | Variable | Default | Description |
 |---|---|---|
+| `BARECLAW_HOST` | `127.0.0.1` | HTTP bind address. Defaults to localhost-only. Set to `0.0.0.0` to listen on all interfaces (requires `BARECLAW_HTTP_TOKEN`). |
 | `BARECLAW_PORT` | `3000` | HTTP server port |
+| `BARECLAW_RUNTIME_DIR` | `~/.bareclaw` | Directory for sockets, PID files, and session logs. Created with `0700` permissions. |
 | `BARECLAW_CWD` | `$HOME` | Working directory for `claude` processes. Determines which `CLAUDE.md` and project context Claude sees. |
 | `BARECLAW_MAX_TURNS` | `25` | Max agentic turns per message. Prevents runaway tool loops. |
 | `BARECLAW_ALLOWED_TOOLS` | `Read,Glob,Grep,Bash,Write,Edit,Skill,Task` | Tools auto-approved without interactive confirmation. Comma-separated. |
@@ -172,12 +174,16 @@ This controls the project context for all `claude` processes:
 - `~` — Claude sees your global `~/.claude/CLAUDE.md` and can access anything in your home directory
 - Set to BAREclaw's own directory for self-modification
 
-## Authentication
+## Security
 
-BAREclaw has shell access. Every channel that can reach it can run arbitrary commands.
+BAREclaw has shell access. Every channel that can reach it can run arbitrary commands. Security is layered:
 
-- **HTTP**: set `BARECLAW_HTTP_TOKEN` for anything beyond localhost. Requests without `Authorization: Bearer <token>` get 401.
-- **Telegram**: `BARECLAW_ALLOWED_USERS` is mandatory — BAREclaw refuses to start without it. Messages from users not on the allowlist are silently dropped.
+- **Localhost-only by default.** The HTTP server binds to `127.0.0.1`. Set `BARECLAW_HOST=0.0.0.0` to expose to the network, but **always** set `BARECLAW_HTTP_TOKEN` if you do.
+- **HTTP auth.** Set `BARECLAW_HTTP_TOKEN` for Bearer token authentication. Requests without `Authorization: Bearer <token>` get 401.
+- **CORS protection.** Cross-origin requests (those with an `Origin` header) are rejected. This prevents browser-based CSRF attacks against the localhost API.
+- **Telegram allowlist.** `BARECLAW_ALLOWED_USERS` is mandatory — BAREclaw refuses to start without it. Messages from users not on the allowlist are silently dropped. The `/send` push endpoint also validates targets against this list.
+- **Channel sanitization.** Channel names are restricted to `[a-zA-Z0-9_-]` and truncated to 128 characters. This prevents path traversal via crafted channel names.
+- **Private runtime directory.** Sockets, PID files, and session logs are stored in `~/.bareclaw/` with `0700` permissions (owner-only access), not in `/tmp/`.
 - All channels share the same `--allowedTools` set (no per-channel restrictions in V1).
 
 ## Self-restart
@@ -245,7 +251,7 @@ systemctl --user daemon-reload
 
 Edit `heartbeat/heartbeat.sh` to change the heartbeat message. Edit the interval in the plist (`StartInterval` in seconds) or timer (`OnUnitActiveSec`). Re-run `install.sh` or restart the server to apply.
 
-Logs: `/tmp/bareclaw-heartbeat.log`.
+Logs: `~/.bareclaw/heartbeat.log`.
 
 ## Telegram setup
 

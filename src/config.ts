@@ -1,7 +1,20 @@
 import { homedir } from 'os';
+import { mkdirSync } from 'fs';
+
+/** Sanitize a channel name to prevent path traversal and shell metacharacters. */
+export function sanitizeChannel(channel: string): string {
+  return channel.replace(/[^a-zA-Z0-9_-]/g, '_').substring(0, 128);
+}
+
+/** Ensure the runtime directory exists with owner-only permissions. */
+export function ensureRuntimeDir(dir: string): void {
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+}
 
 export interface Config {
   port: number;
+  host: string;
+  runtimeDir: string;
   cwd: string;
   maxTurns: number;
   allowedTools: string;
@@ -24,6 +37,8 @@ export function loadConfig(): Config {
   const allowedUsersRaw = process.env.BARECLAW_ALLOWED_USERS?.trim();
   return {
     port: parseInt(process.env.BARECLAW_PORT || '3000', 10),
+    host: process.env.BARECLAW_HOST || '127.0.0.1',
+    runtimeDir: process.env.BARECLAW_RUNTIME_DIR || `${homedir()}/.bareclaw`,
     cwd: (process.env.BARECLAW_CWD || homedir()).replace(/^~/, homedir()),
     maxTurns: parseInt(process.env.BARECLAW_MAX_TURNS || '25', 10),
     allowedTools: process.env.BARECLAW_ALLOWED_TOOLS || 'Read,Glob,Grep,Bash,Write,Edit,Skill,Task',

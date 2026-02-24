@@ -8,6 +8,8 @@ import type { PushRegistry } from '../core/push-registry.js';
 function makeConfig(overrides: Partial<Config> = {}): Config {
   return {
     port: 3000,
+    host: '127.0.0.1',
+    runtimeDir: '/tmp/bareclaw-test',
     cwd: '/tmp',
     maxTurns: 25,
     allowedTools: 'Read,Bash',
@@ -153,6 +155,43 @@ describe('HTTP adapter', () => {
 
       const res = await request(app, '/send', { channel: 'unknown-123', text: 'hi' });
       expect(res.status).toBe(404);
+    });
+  });
+
+  describe('CORS protection', () => {
+    it('blocks requests with Origin header', async () => {
+      const app = buildApp(makeConfig(), mockProcessManager(), mockPushRegistry());
+      const res = await request(app, '/message', { text: 'hello' }, {
+        Origin: 'https://evil.com',
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('allows requests without Origin header', async () => {
+      const app = buildApp(makeConfig(), mockProcessManager(), mockPushRegistry());
+      const res = await request(app, '/message', { text: 'hello' });
+      expect(res.status).toBe(200);
+    });
+  });
+
+  describe('channel sanitization', () => {
+    it('sanitizes path traversal in channel name', async () => {
+      const pm = mockProcessManager();
+      const app = buildApp(makeConfig(), pm, mockPushRegistry());
+
+      await request(app, '/message', { text: 'hello', channel: '../../etc/passwd' });
+      // channel should be sanitized — no slashes or dots
+      const callArgs = (pm.send as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(callArgs[0]).not.toContain('/');
+      expect(callArgs[0]).not.toContain('.');
+    });
+
+    it('sanitizes channel in /send endpoint', async () => {
+      const push = mockPushRegistry();
+      const app = buildApp(makeConfig(), mockProcessManager(), push);
+
+      await request(app, '/send', { channel: 'tg-123', text: 'hi' });
+      expect(push.send).toHaveBeenCalledWith('tg-123', 'hi');
     });
   });
 

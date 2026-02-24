@@ -15,6 +15,7 @@ interface HostConfig {
   channel: string;
   socketPath: string;
   pidFile: string;
+  logFile: string;
   cwd: string;
   maxTurns: number;
   allowedTools: string;
@@ -23,7 +24,7 @@ interface HostConfig {
 }
 
 const config: HostConfig = JSON.parse(process.argv[2]!);
-const logFile = `/tmp/bareclaw-${config.channel}.log`;
+const logFile = config.logFile;
 
 function log(msg: string) {
   const ts = new Date().toISOString().substring(11, 19);

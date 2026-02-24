@@ -45,7 +45,7 @@ BAREclaw has a built-in heartbeat — a scheduled job (launchd on macOS, systemd
 The heartbeat session is persistent and separate from all user-facing channels. It accumulates context — the user can message it directly to add reminders, recurring checks, or tasks. It remembers across heartbeats.
 
 - Config and scripts: `heartbeat/`
-- Logs: `/tmp/bareclaw-heartbeat.log`
+- Logs: `~/.bareclaw/heartbeat.log`
 - Manual test: `curl -sf -X POST localhost:3000/message -H 'Content-Type: application/json' -d '{"text":"heartbeat test","channel":"heartbeat"}'`
 
 ### Proactive messaging

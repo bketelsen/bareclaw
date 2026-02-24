@@ -60,8 +60,8 @@ const app = express();
 app.use(express.json());
 app.use(createHttpAdapter(config, processManager, restart, pushRegistry));
 
-const server = app.listen(config.port, () => {
-  console.log(`[bareclaw] HTTP listening on :${config.port}`);
+const server = app.listen(config.port, config.host, () => {
+  console.log(`[bareclaw] HTTP listening on ${config.host}:${config.port}`);
   if (config.httpToken) {
     console.log(`[bareclaw] HTTP auth enabled (Bearer token)`);
   } else {
