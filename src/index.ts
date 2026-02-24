@@ -25,10 +25,14 @@ function ensureHeartbeat(): void {
 }
 ensureHeartbeat();
 
+// Telegram bot cleanup — set during adapter init so shutdown paths can stop polling
+let stopTelegram: (() => void) | undefined;
+
 // Self-restart: shut down everything, re-exec the same process
 function restart() {
   console.log('[bareclaw] restarting...');
   processManager.shutdown();
+  stopTelegram?.();
   server.close(() => {
     const child = spawn(process.argv[0]!, process.argv.slice(1), {
       detached: true,
@@ -38,8 +42,8 @@ function restart() {
     child.unref();
     process.exit(0);
   });
-  // If server.close hangs, force exit after 5s
-  setTimeout(() => process.exit(0), 5000);
+  // If server.close hangs, force exit after 3s
+  setTimeout(() => process.exit(0), 3000);
 }
 
 // Push registry — adapters register handlers for outbound messages via POST /send
@@ -50,6 +54,7 @@ if (config.telegramToken) {
   const { bot, pushHandler } = createTelegramAdapter(config, processManager);
   pushRegistry.register('tg-', pushHandler);
   bot.launch();
+  stopTelegram = () => bot.stop();
   console.log(`[bareclaw] Telegram bot started (${config.allowedUsers.length} allowed user(s))`);
 } else {
   console.log(`[bareclaw] Telegram disabled (no BARECLAW_TELEGRAM_TOKEN)`);
@@ -73,6 +78,7 @@ const server = app.listen(config.port, config.host, () => {
 process.on('SIGTERM', () => {
   console.log('\n[bareclaw] hot reload — disconnecting from session hosts...');
   processManager.shutdown();
+  stopTelegram?.();
   process.exit(0);
 });
 
@@ -80,6 +86,7 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   console.log('\n[bareclaw] full shutdown — killing session hosts...');
   processManager.shutdownHosts();
+  stopTelegram?.();
   process.exit(0);
 });
 
