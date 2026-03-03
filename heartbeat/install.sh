@@ -13,7 +13,7 @@ RUNTIME_DIR="${HOME}/.bareclaw"
 
 # Read BARECLAW_RUNTIME_DIR from .env if available
 if [ -f "$BARECLAW_DIR/.env" ]; then
-  _rd=$(grep -E '^BARECLAW_RUNTIME_DIR=' "$BARECLAW_DIR/.env" | cut -d= -f2-)
+  _rd=$(grep -E '^BARECLAW_RUNTIME_DIR=' "$BARECLAW_DIR/.env" 2>/dev/null | cut -d= -f2- || true)
   [ -n "$_rd" ] && RUNTIME_DIR="${_rd/#\~/$HOME}"
 fi
 
