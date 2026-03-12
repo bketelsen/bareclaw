@@ -115,7 +115,7 @@ if (existsSync(clientDist)) {
 
 // Create HTTP server (needed for WS upgrade) and attach WS adapter
 const server = createServer(app);
-const { stop: wsStop } = createWebSocketAdapter(server, auth, processManager, conversations, pushRegistry);
+const { stop: wsStop } = createWebSocketAdapter(server, auth, processManager, conversations, pushRegistry, restart);
 stopWebSocket = wsStop;
 
 server.listen(config.port, config.host, () => {

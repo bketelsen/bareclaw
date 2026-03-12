@@ -93,6 +93,18 @@ export function App() {
       case 'error':
         console.error('[app] server error:', msg.message);
         break;
+
+      case 'push':
+        // Push message from another adapter — show as assistant message
+        if (msg.channel) {
+          chatStore.addUserMessage(msg.channel, `[push] ${msg.text}`);
+        }
+        break;
+
+      case 'admin-result':
+        // Handled by AdminPanel via its own state — just log
+        console.log('[app] admin result:', msg);
+        break;
     }
   }, []);
 

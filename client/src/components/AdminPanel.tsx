@@ -19,13 +19,13 @@ export function AdminPanel({ open, onClose, wsClient, wsStatus }: AdminPanelProp
 
   function handleSend() {
     setSendResult('');
-    wsClient.send({ type: 'admin-send', channel: sendChannel, text: sendText } as any);
-    setSendResult('Sent via WebSocket');
+    wsClient.send({ type: 'admin-send', channel: sendChannel, text: sendText });
+    setSendResult('Sending...');
   }
 
   function handleRestart() {
     setRestarting(true);
-    wsClient.send({ type: 'admin-restart' } as any);
+    wsClient.send({ type: 'admin-restart' });
     setSendResult('Restart initiated — server will reconnect shortly');
     setTimeout(() => setRestarting(false), 3000);
   }

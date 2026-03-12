@@ -27,6 +27,7 @@ export function createWebSocketAdapter(
   processManager: ProcessManager,
   conversations: ConversationStore,
   pushRegistry: PushRegistry,
+  restart?: () => void,
 ): { stop: () => void } {
   const wss = new WebSocketServer({ noServer: true });
   const clients = new Set<ClientState>();
@@ -143,6 +144,10 @@ export function createWebSocketAdapter(
 
       case 'admin-restart': {
         client.ws.send(JSON.stringify({ type: 'admin-result', success: true, action: 'restart' }));
+        if (restart) {
+          // Delay slightly so the ack message gets sent before server shuts down
+          setTimeout(restart, 100);
+        }
         break;
       }
 

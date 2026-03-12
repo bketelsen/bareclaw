@@ -69,6 +69,14 @@ export class Auth {
   }
 
   async register(username: string, password: string, callerToken?: string): Promise<AuthResult> {
+    // Input validation
+    if (!username || !username.trim() || username.length > 64 || !/^[a-zA-Z0-9_-]+$/.test(username)) {
+      return { ok: false, error: 'Username must be 1-64 alphanumeric characters (plus _ and -)' };
+    }
+    if (!password || password.length < 4) {
+      return { ok: false, error: 'Password must be at least 4 characters' };
+    }
+
     // Check if registration is allowed
     if (this.allowRegistration === 'false') {
       return { ok: false, error: 'Registration is disabled' };

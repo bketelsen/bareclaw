@@ -6,14 +6,17 @@ export type ServerMessage =
   | { type: 'channel-created'; channel: string; title: string }
   | { type: 'channel-deleted'; channel: string }
   | { type: 'channel-renamed'; channel: string; title: string }
-  | { type: 'push'; channel: string; text: string };
+  | { type: 'push'; channel: string; text: string }
+  | { type: 'admin-result'; success: boolean; channel?: string; action?: string };
 
 export type ClientMessage =
   | { type: 'send'; channel: string; text: string }
   | { type: 'list-channels' }
   | { type: 'create-channel'; title?: string }
   | { type: 'delete-channel'; channel: string }
-  | { type: 'rename-channel'; channel: string; title: string };
+  | { type: 'rename-channel'; channel: string; title: string }
+  | { type: 'admin-send'; channel: string; text: string }
+  | { type: 'admin-restart' };
 
 type MessageHandler = (msg: ServerMessage) => void;
 type StatusHandler = (status: 'connecting' | 'connected' | 'disconnected') => void;
