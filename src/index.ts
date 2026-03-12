@@ -1,4 +1,5 @@
 import { spawn, execFileSync } from 'child_process';
+import { createServer } from 'http';
 import { existsSync } from 'fs';
 import { resolve } from 'path';
 import express from 'express';
@@ -7,6 +8,9 @@ import { ProcessManager } from './core/process-manager.js';
 import { createHttpAdapter } from './adapters/http.js';
 import { createTelegramAdapter } from './adapters/telegram.js';
 import { PushRegistry } from './core/push-registry.js';
+import { Auth } from './auth.js';
+import { ConversationStore } from './core/conversations.js';
+import { createWebSocketAdapter } from './adapters/ws.js';
 
 const config = loadConfig();
 const processManager = new ProcessManager(config);
@@ -27,12 +31,22 @@ ensureHeartbeat();
 
 // Telegram bot cleanup — set during adapter init so shutdown paths can stop polling
 let stopTelegram: (() => void) | undefined;
+let stopWebSocket: (() => void) | undefined;
+
+// Auth and conversation store
+const auth = new Auth({
+  runtimeDir: config.runtimeDir,
+  jwtSecret: config.jwtSecret,
+  allowRegistration: config.allowRegistration,
+});
+const conversations = new ConversationStore(config.runtimeDir);
 
 // Self-restart: shut down everything, re-exec the same process
 function restart() {
   console.log('[bareclaw] restarting...');
   processManager.shutdown();
   stopTelegram?.();
+  stopWebSocket?.();
   server.close(() => {
     const child = spawn(process.argv[0]!, process.argv.slice(1), {
       detached: true,
@@ -63,15 +77,55 @@ if (config.telegramToken) {
 // HTTP
 const app = express();
 app.use(express.json());
+
+// Auth routes — mounted before HTTP adapter to bypass origin-blocking middleware
+app.post('/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) {
+    res.status(400).json({ error: 'Missing username or password' });
+    return;
+  }
+  const result = await auth.login(username, password);
+  res.status(result.ok ? 200 : 401).json(result);
+});
+
+app.post('/auth/register', async (req, res) => {
+  const { username, password } = req.body;
+  const callerToken = req.headers.authorization?.replace('Bearer ', '');
+  if (!username || !password) {
+    res.status(400).json({ error: 'Missing username or password' });
+    return;
+  }
+  const result = await auth.register(username, password, callerToken);
+  res.status(result.ok ? 201 : 400).json(result);
+});
+
+// Existing HTTP adapter (has origin-blocking + bearer token middleware)
 app.use(createHttpAdapter(config, processManager, restart, pushRegistry));
 
-const server = app.listen(config.port, config.host, () => {
+// Serve frontend static files (production)
+const clientDist = resolve(import.meta.dirname, '..', 'client', 'dist');
+if (existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  // SPA fallback — serve index.html for all non-API routes
+  app.get('*', (_req, res) => {
+    res.sendFile(resolve(clientDist, 'index.html'));
+  });
+}
+
+// Create HTTP server (needed for WS upgrade) and attach WS adapter
+const server = createServer(app);
+const { stop: wsStop } = createWebSocketAdapter(server, auth, processManager, conversations, pushRegistry);
+stopWebSocket = wsStop;
+
+server.listen(config.port, config.host, () => {
   console.log(`[bareclaw] HTTP listening on ${config.host}:${config.port}`);
   if (config.httpToken) {
     console.log(`[bareclaw] HTTP auth enabled (Bearer token)`);
   } else {
     console.log(`[bareclaw] HTTP auth disabled (no BARECLAW_HTTP_TOKEN)`);
   }
+  console.log(`[bareclaw] Web auth: ${auth.userCount} user(s) registered`);
 });
 
 // SIGTERM (tsx watch sends this on hot reload) — disconnect, keep session hosts alive
@@ -79,6 +133,7 @@ process.on('SIGTERM', () => {
   console.log('\n[bareclaw] hot reload — disconnecting from session hosts...');
   processManager.shutdown();
   stopTelegram?.();
+  stopWebSocket?.();
   process.exit(0);
 });
 
@@ -87,6 +142,7 @@ process.on('SIGINT', () => {
   console.log('\n[bareclaw] full shutdown — killing session hosts...');
   processManager.shutdownHosts();
   stopTelegram?.();
+  stopWebSocket?.();
   process.exit(0);
 });
 
