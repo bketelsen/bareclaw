@@ -22,12 +22,12 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         style={{
           background: isUser ? 'var(--accent)' : 'var(--bg-tertiary)',
           border: isUser ? 'none' : '1px solid var(--border)',
-          color: 'var(--text-primary)',
+          color: isUser ? 'var(--bg-primary)' : 'var(--text-primary)',
         }}
       >
         {message.toolActivity && <ToolActivity activity={message.toolActivity} />}
         {message.text && (
-          <div className="prose prose-invert max-w-none prose-pre:p-0">
+          <div className={`prose max-w-none prose-pre:p-0 ${isUser ? '' : 'prose-invert'}`}>
             <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
