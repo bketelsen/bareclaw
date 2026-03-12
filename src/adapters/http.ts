@@ -1,4 +1,6 @@
 import express, { type Router, type Request, type Response, type NextFunction } from 'express';
+import { readdirSync, readFileSync, writeFileSync, unlinkSync, mkdirSync } from 'fs';
+import { resolve } from 'path';
 import { type Config, sanitizeChannel } from '../config.js';
 import type { ProcessManager } from '../core/process-manager.js';
 import type { ChannelContext, PushMedia, SendMessageRequest } from '../core/types.js';
@@ -100,6 +102,63 @@ export function createHttpAdapter(config: Config, processManager: ProcessManager
     res.json({ status: 'restarting' });
     // Delay to let the response flush
     setTimeout(restart, 100);
+  });
+
+  // --- Memory endpoints ---
+
+  router.get('/memory', (_req, res) => {
+    try {
+      const memDir = resolve(config.runtimeDir, 'memory');
+      let files: string[] = [];
+      try {
+        files = readdirSync(memDir).filter(f => f.endsWith('.md')).sort();
+      } catch {}
+      const entries = files.map(f => ({
+        name: f.replace(/\.md$/, ''),
+        content: readFileSync(resolve(memDir, f), 'utf-8'),
+      }));
+      res.json({ entries });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      res.status(500).json({ error: message });
+    }
+  });
+
+  router.post('/memory', (req, res) => {
+    const { name, content } = req.body as { name?: string; content?: string };
+
+    if (!name || typeof name !== 'string') {
+      res.status(400).json({ error: 'Missing "name" field' });
+      return;
+    }
+    if (content === undefined || content === null || typeof content !== 'string') {
+      res.status(400).json({ error: 'Missing "content" field' });
+      return;
+    }
+
+    const safeName = sanitizeChannel(name);
+    const memDir = resolve(config.runtimeDir, 'memory');
+    mkdirSync(memDir, { recursive: true });
+    writeFileSync(resolve(memDir, `${safeName}.md`), content);
+    console.log(`[http] memory saved: ${safeName}`);
+    res.json({ status: 'saved', name: safeName });
+  });
+
+  router.delete('/memory', (req, res) => {
+    const { name } = req.body as { name?: string };
+
+    if (!name || typeof name !== 'string') {
+      res.status(400).json({ error: 'Missing "name" field' });
+      return;
+    }
+
+    const safeName = sanitizeChannel(name);
+    const memDir = resolve(config.runtimeDir, 'memory');
+    try {
+      unlinkSync(resolve(memDir, `${safeName}.md`));
+    } catch {}
+    console.log(`[http] memory deleted: ${safeName}`);
+    res.json({ status: 'deleted', name: safeName });
   });
 
   return router;

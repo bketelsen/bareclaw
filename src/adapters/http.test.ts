@@ -1,5 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
+import { mkdirSync, writeFileSync, rmSync } from 'fs';
+import { resolve } from 'path';
+import { tmpdir } from 'os';
 import { createHttpAdapter } from './http.js';
 import type { Config } from '../config.js';
 import type { ProcessManager } from '../core/process-manager.js';
@@ -44,19 +47,21 @@ function mockPushRegistry() {
 async function request(
   app: express.Express,
   path: string,
-  body: unknown,
+  body: unknown = null,
   headers: Record<string, string> = {},
+  method: 'GET' | 'POST' | 'DELETE' = 'POST',
 ): Promise<{ status: number; body: unknown }> {
-  // Use the actual Express app to handle the request via supertest-like approach
-  // Since we don't have supertest, we'll start a server on a random port
   const server = app.listen(0);
   const port = (server.address() as { port: number }).port;
   try {
-    const resp = await fetch(`http://localhost:${port}${path}`, {
-      method: 'POST',
+    const opts: RequestInit = {
+      method,
       headers: { 'Content-Type': 'application/json', ...headers },
-      body: JSON.stringify(body),
-    });
+    };
+    if (body !== null && method !== 'GET') {
+      opts.body = JSON.stringify(body);
+    }
+    const resp = await fetch(`http://localhost:${port}${path}`, opts);
     const json = await resp.json();
     return { status: resp.status, body: json };
   } finally {
@@ -260,6 +265,133 @@ describe('HTTP adapter', () => {
         Authorization: 'Bearer wrong',
       });
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe('memory endpoints', () => {
+    let memoryDir: string;
+    let memConfig: ReturnType<typeof makeConfig>;
+
+    beforeEach(() => {
+      const runtimeDir = resolve(tmpdir(), `bareclaw-mem-test-${Date.now()}`);
+      memoryDir = resolve(runtimeDir, 'memory');
+      mkdirSync(memoryDir, { recursive: true });
+      memConfig = makeConfig({ runtimeDir });
+    });
+
+    afterEach(() => {
+      rmSync(memConfig.runtimeDir, { recursive: true, force: true });
+    });
+
+    describe('GET /memory', () => {
+      it('returns empty entries when no memory files exist', async () => {
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', null, {}, 'GET');
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ entries: [] });
+      });
+
+      it('returns all memory entries', async () => {
+        writeFileSync(resolve(memoryDir, 'identity.md'), 'Name is bjk.');
+        writeFileSync(resolve(memoryDir, 'preferences.md'), 'Concise responses.');
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', null, {}, 'GET');
+        expect(res.status).toBe(200);
+        const body = res.body as { entries: { name: string; content: string }[] };
+        expect(body.entries).toHaveLength(2);
+        expect(body.entries.find(e => e.name === 'identity')?.content).toBe('Name is bjk.');
+        expect(body.entries.find(e => e.name === 'preferences')?.content).toBe('Concise responses.');
+      });
+
+      it('ignores non-.md files', async () => {
+        writeFileSync(resolve(memoryDir, 'identity.md'), 'Name is bjk.');
+        writeFileSync(resolve(memoryDir, 'notes.txt'), 'Ignored.');
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', null, {}, 'GET');
+        const body = res.body as { entries: { name: string }[] };
+        expect(body.entries).toHaveLength(1);
+        expect(body.entries[0].name).toBe('identity');
+      });
+    });
+
+    describe('POST /memory', () => {
+      it('creates a new memory entry', async () => {
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', { name: 'identity', content: 'Name is bjk.' });
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ status: 'saved', name: 'identity' });
+
+        const getRes = await request(app, '/memory', null, {}, 'GET');
+        const body = getRes.body as { entries: { name: string; content: string }[] };
+        expect(body.entries.find(e => e.name === 'identity')?.content).toBe('Name is bjk.');
+      });
+
+      it('overwrites an existing memory entry', async () => {
+        writeFileSync(resolve(memoryDir, 'identity.md'), 'Old content.');
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', { name: 'identity', content: 'New content.' });
+        expect(res.status).toBe(200);
+
+        const getRes = await request(app, '/memory', null, {}, 'GET');
+        const body = getRes.body as { entries: { name: string; content: string }[] };
+        expect(body.entries.find(e => e.name === 'identity')?.content).toBe('New content.');
+      });
+
+      it('sanitizes name to prevent path traversal', async () => {
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', { name: '../../etc/passwd', content: 'evil' });
+        expect(res.status).toBe(200);
+        const body = res.body as { status: string; name: string };
+        expect(body.name).not.toContain('/');
+        expect(body.name).not.toContain('.');
+      });
+
+      it('returns 400 for missing name', async () => {
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', { content: 'hello' });
+        expect(res.status).toBe(400);
+      });
+
+      it('returns 400 for missing content', async () => {
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', { name: 'identity' });
+        expect(res.status).toBe(400);
+      });
+    });
+
+    describe('DELETE /memory', () => {
+      it('deletes an existing memory entry', async () => {
+        writeFileSync(resolve(memoryDir, 'identity.md'), 'Name is bjk.');
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', { name: 'identity' }, {}, 'DELETE');
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ status: 'deleted', name: 'identity' });
+
+        const getRes = await request(app, '/memory', null, {}, 'GET');
+        const body = getRes.body as { entries: unknown[] };
+        expect(body.entries).toHaveLength(0);
+      });
+
+      it('returns success for nonexistent entry (idempotent)', async () => {
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', { name: 'doesnotexist' }, {}, 'DELETE');
+        expect(res.status).toBe(200);
+        expect(res.body).toEqual({ status: 'deleted', name: 'doesnotexist' });
+      });
+
+      it('sanitizes name to prevent path traversal', async () => {
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', { name: '../../etc/passwd' }, {}, 'DELETE');
+        expect(res.status).toBe(200);
+        const body = res.body as { name: string };
+        expect(body.name).not.toContain('/');
+      });
+
+      it('returns 400 for missing name', async () => {
+        const app = buildApp(memConfig, mockProcessManager(), mockPushRegistry());
+        const res = await request(app, '/memory', {}, {}, 'DELETE');
+        expect(res.status).toBe(400);
+      });
     });
   });
 });
