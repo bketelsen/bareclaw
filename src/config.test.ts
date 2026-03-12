@@ -75,6 +75,24 @@ describe('loadConfig', () => {
     expect(config.cwd).not.toContain('~');
     expect(config.cwd).toMatch(/\/projects$/);
   });
+
+  it('reads BARECLAW_JWT_SECRET from env', () => {
+    process.env.BARECLAW_JWT_SECRET = 'test-secret';
+    const config = loadConfig();
+    expect(config.jwtSecret).toBe('test-secret');
+  });
+
+  it('reads BARECLAW_ALLOW_REGISTRATION from env', () => {
+    process.env.BARECLAW_ALLOW_REGISTRATION = 'false';
+    const config = loadConfig();
+    expect(config.allowRegistration).toBe('false');
+  });
+
+  it('defaults allowRegistration to undefined when not set', () => {
+    delete process.env.BARECLAW_ALLOW_REGISTRATION;
+    const config = loadConfig();
+    expect(config.allowRegistration).toBeUndefined();
+  });
 });
 
 describe('sanitizeChannel', () => {

@@ -31,6 +31,9 @@ export interface Config {
   telegramToken: string | undefined;
   allowedUsers: number[];
   sessionFile: string;
+  jwtSecret: string | undefined;
+  /** 'true' = always open, 'false' = always closed, undefined = auto (open until first user) */
+  allowRegistration: string | undefined;
 }
 
 export function loadConfig(): Config {
@@ -49,5 +52,7 @@ export function loadConfig(): Config {
       ? allowedUsersRaw.split(',').map((s) => parseInt(s.trim(), 10)).filter(Number.isFinite)
       : [],
     sessionFile: process.env.BARECLAW_SESSION_FILE || '.bareclaw-sessions.json',
+    jwtSecret: process.env.BARECLAW_JWT_SECRET || undefined,
+    allowRegistration: process.env.BARECLAW_ALLOW_REGISTRATION || undefined,
   };
 }
