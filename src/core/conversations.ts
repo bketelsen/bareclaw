@@ -33,7 +33,7 @@ export class ConversationStore {
   private save(): void {
     const obj: Record<string, Conversation> = {};
     for (const [ch, conv] of this.conversations) obj[ch] = conv;
-    writeFileSync(this.filePath, JSON.stringify(obj, null, 2) + '\n');
+    writeFileSync(this.filePath, JSON.stringify(obj, null, 2) + '\n', { mode: 0o600 });
   }
 
   create(userId: string, title?: string): Conversation {

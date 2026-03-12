@@ -98,7 +98,7 @@ describe('ConversationStore', () => {
       // Small delay to ensure different timestamp
       store.touch(conv.channel);
       const after = store.list('alice')[0].lastMessageAt;
-      expect(after).toBeDefined();
+      expect(after >= before).toBe(true);
     });
   });
 
