@@ -1,5 +1,8 @@
 import { create } from 'zustand';
 
+const STORAGE_KEY = 'bareclaw-chat-messages';
+const MAX_PERSISTED_PER_CHANNEL = 100;
+
 export interface ToolActivity {
   name: string;
   input?: Record<string, unknown>;
@@ -26,12 +29,39 @@ interface ChatState {
   appendText: (channel: string, messageId: string, text: string) => void;
   setToolActivity: (channel: string, messageId: string, activity: ToolActivity | undefined) => void;
   finalizeMessage: (channel: string, messageId: string, text: string, durationMs: number) => void;
+  deleteChannel: (channel: string) => void;
 }
 
-let nextId = 0;
+function loadMessages(): Record<string, ChatMessage[]> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as Record<string, ChatMessage[]>;
+  } catch {
+    return {};
+  }
+}
+
+function saveMessages(messages: Record<string, ChatMessage[]>): void {
+  try {
+    const trimmed: Record<string, ChatMessage[]> = {};
+    for (const [ch, msgs] of Object.entries(messages)) {
+      // Only persist finalized messages (not streaming)
+      const finalized = msgs.filter((m) => !m.isStreaming);
+      if (finalized.length > 0) {
+        trimmed[ch] = finalized.slice(-MAX_PERSISTED_PER_CHANNEL);
+      }
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(trimmed));
+  } catch {
+    // localStorage full or unavailable — silently ignore
+  }
+}
+
+let nextId = Date.now();
 
 export const useChatStore = create<ChatState>((set) => ({
-  messages: {},
+  messages: loadMessages(),
   streamingId: {},
 
   addUserMessage: (channel, text) =>
@@ -39,7 +69,9 @@ export const useChatStore = create<ChatState>((set) => ({
       const id = `msg-${++nextId}`;
       const msg: ChatMessage = { id, role: 'user', text, timestamp: Date.now() };
       const channelMsgs = [...(state.messages[channel] || []), msg];
-      return { messages: { ...state.messages, [channel]: channelMsgs } };
+      const messages = { ...state.messages, [channel]: channelMsgs };
+      saveMessages(messages);
+      return { messages };
     }),
 
   startAssistantMessage: (channel) => {
@@ -87,16 +119,27 @@ export const useChatStore = create<ChatState>((set) => ({
     set((state) => {
       const msgs = state.messages[channel];
       if (!msgs) return state;
+      const messages = {
+        ...state.messages,
+        [channel]: msgs.map((m) =>
+          m.id === messageId
+            ? { ...m, text, isStreaming: false, toolActivity: undefined, durationMs }
+            : m,
+        ),
+      };
+      saveMessages(messages);
       return {
-        messages: {
-          ...state.messages,
-          [channel]: msgs.map((m) =>
-            m.id === messageId
-              ? { ...m, text, isStreaming: false, toolActivity: undefined, durationMs }
-              : m,
-          ),
-        },
+        messages,
         streamingId: { ...state.streamingId, [channel]: null },
       };
+    }),
+
+  deleteChannel: (channel) =>
+    set((state) => {
+      const { [channel]: _, ...rest } = state.messages;
+      const { [channel]: __, ...restStreaming } = state.streamingId;
+      const messages = rest;
+      saveMessages(messages);
+      return { messages, streamingId: restStreaming };
     }),
 }));

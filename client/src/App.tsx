@@ -38,6 +38,7 @@ export function App() {
 
       case 'channel-deleted':
         channelStore.removeChannel(msg.channel);
+        chatStore.deleteChannel(msg.channel);
         break;
 
       case 'channel-renamed':
