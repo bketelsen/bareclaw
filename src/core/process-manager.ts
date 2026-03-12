@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import { connect, type Socket } from 'net';
 import { createInterface, type Interface } from 'readline';
-import { readFileSync, writeFileSync, unlinkSync } from 'fs';
+import { readFileSync, writeFileSync, unlinkSync, readdirSync } from 'fs';
 import { resolve } from 'path';
 import { type Config, ensureRuntimeDir } from '../config.js';
 import type { ChannelContext, ClaudeEvent, ClaudeInput, ContentBlock, SendMessageResponse } from './types.js';
@@ -285,6 +285,35 @@ export class ProcessManager {
   }
 
   /**
+   * Load all shared memory files from ${runtimeDir}/memory/*.md.
+   * Returns a formatted string or empty string if no memory exists.
+   * Never throws — a broken memory file must not prevent message delivery.
+   */
+  private loadSharedMemory(): string {
+    try {
+      const memDir = resolve(this.config.runtimeDir, 'memory');
+      const files = readdirSync(memDir).filter(f => f.endsWith('.md')).sort();
+      if (files.length === 0) return '';
+
+      const sections: string[] = [];
+      for (const f of files) {
+        try {
+          const name = f.replace(/\.md$/, '');
+          const content = readFileSync(resolve(memDir, f), 'utf-8').trim();
+          sections.push(`### ${name}\n${content}`);
+        } catch {
+          // Skip unreadable files
+        }
+      }
+      if (sections.length === 0) return '';
+
+      return `## Shared Memory\n${sections.join('\n\n')}`;
+    } catch {
+      return '';
+    }
+  }
+
+  /**
    * Dispatch a single message to the session host socket. Sets busy=true for
    * the duration, preventing concurrent writes to the NDJSON stream.
    * On completion, calls drainQueue() to process the next queued message.
@@ -294,7 +323,10 @@ export class ProcessManager {
     if (ctx.userName) parts.push(`user: ${ctx.userName}`);
     if (ctx.chatTitle) parts.push(`chat: ${ctx.chatTitle}`);
     if (ctx.topicName) parts.push(`topic: ${ctx.topicName}`);
-    const prefix = `[${parts.join(', ')}]`;
+    const channelPrefix = `[${parts.join(', ')}]`;
+
+    const memory = this.loadSharedMemory();
+    const prefix = memory ? `${channelPrefix}\n\n${memory}` : channelPrefix;
 
     if (typeof content === 'string') {
       return `${prefix}\n${content}`;
