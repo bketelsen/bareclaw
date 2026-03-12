@@ -2,11 +2,19 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageBubble } from './MessageBubble';
+import { EditableTitle } from './EditableTitle';
 import { useChatStore } from '../stores/chat';
 import { useChannelStore } from '../stores/channels';
 import type { WsClient } from '../lib/ws';
 
 const EMPTY_MESSAGES: never[] = [];
+
+function truncateTitle(text: string, max = 50): string {
+  const trimmed = text.trim();
+  if (trimmed.length <= max) return trimmed;
+  const boundary = trimmed.lastIndexOf(' ', max);
+  return (boundary > 0 ? trimmed.slice(0, boundary) : trimmed.slice(0, max)) + '...';
+}
 
 interface ChatViewProps {
   wsClient: WsClient;
@@ -30,6 +38,11 @@ export function ChatView({ wsClient }: ChatViewProps) {
     if (!input.trim() || !activeChannel || streamingId) return;
     useChatStore.getState().addUserMessage(activeChannel, input);
     wsClient.send({ type: 'send', channel: activeChannel, text: input });
+    // Auto-title: if conversation still has default name, generate from first message
+    if (activeConv?.title === 'New conversation') {
+      const autoTitle = truncateTitle(input);
+      wsClient.send({ type: 'rename-channel', channel: activeChannel, title: autoTitle });
+    }
     setInput('');
   }
 
@@ -52,7 +65,12 @@ export function ChatView({ wsClient }: ChatViewProps) {
     <div className="flex flex-1 flex-col">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-3" style={{ borderColor: 'var(--border)' }}>
-        <span className="font-medium">{activeConv?.title || activeChannel}</span>
+        <EditableTitle
+          title={activeConv?.title || activeChannel}
+          onRename={(title) => wsClient.send({ type: 'rename-channel', channel: activeChannel, title })}
+          className="font-medium"
+          inputClassName="rounded border px-2 py-1 text-sm font-medium outline-none"
+        />
         <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{activeChannel}</span>
       </div>
 
