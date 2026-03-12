@@ -10,12 +10,18 @@
     "start": "node --env-file=.env dist/index.js"
   },
   "dependencies": {
+    "bcrypt": "^6.0.0",
     "express": "^5.1.0",
-    "telegraf": "^4.16.3"
+    "jsonwebtoken": "^9.0.3",
+    "telegraf": "^4.16.3",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.2",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.15.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitest": "^4.0.18"
