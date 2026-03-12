@@ -38,7 +38,13 @@ function mockConversationStore() {
       return conv;
     }),
     list: vi.fn().mockReturnValue([]),
-    get: vi.fn().mockReturnValue(null),
+    get: vi.fn().mockImplementation((channel: string, userId: string) => {
+      // Return a conversation if the channel matches the user's prefix
+      if (channel.startsWith(`web-${userId}-`)) {
+        return { channel, title: 'Test', userId, createdAt: new Date().toISOString(), lastMessageAt: new Date().toISOString() };
+      }
+      return null;
+    }),
     rename: vi.fn().mockReturnValue(true),
     delete: vi.fn().mockReturnValue(true),
     touch: vi.fn(),

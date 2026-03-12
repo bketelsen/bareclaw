@@ -112,22 +112,31 @@ export function createWebSocketAdapter(
       }
 
       case 'delete-channel': {
+        const conv = conversations.get(msg.channel, client.username);
+        if (!conv) {
+          client.ws.send(JSON.stringify({ type: 'error', channel: msg.channel, message: 'Channel not found or not owned by you' }));
+          return;
+        }
         conversations.delete(msg.channel);
         client.ws.send(JSON.stringify({ type: 'channel-deleted', channel: msg.channel }));
         break;
       }
 
       case 'rename-channel': {
+        const conv = conversations.get(msg.channel, client.username);
+        if (!conv) {
+          client.ws.send(JSON.stringify({ type: 'error', channel: msg.channel, message: 'Channel not found or not owned by you' }));
+          return;
+        }
         conversations.rename(msg.channel, msg.title);
         client.ws.send(JSON.stringify({ type: 'channel-renamed', channel: msg.channel, title: msg.title }));
         break;
       }
 
       case 'send': {
-        // Verify ownership: channel must belong to this user
-        const owned = msg.channel.startsWith(`web-${client.username}-`)
-          || conversations.get(msg.channel, client.username) !== null;
-        if (!owned) {
+        // Verify ownership
+        const conv = conversations.get(msg.channel, client.username);
+        if (!conv) {
           client.ws.send(JSON.stringify({ type: 'error', channel: msg.channel, message: 'Channel not found or not owned by you' }));
           return;
         }
