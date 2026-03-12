@@ -27,7 +27,7 @@ Client-to-server messages:
 
 | Type | Payload | Purpose |
 |------|---------|---------|
-| `send` | `{channel, text, content?}` | Send message to Claude |
+| `send` | `{channel, text, content?}` | Send message to Claude (`content` is `ContentBlock[]` for multimodal input) |
 | `list-channels` | `{}` | Get user's conversations |
 | `create-channel` | `{title?}` | Create new conversation |
 | `delete-channel` | `{channel}` | Delete conversation |
@@ -44,22 +44,18 @@ Server-to-client messages:
 | `channel-created` | `{channel, title}` | Confirms creation |
 | `channel-deleted` | `{channel}` | Confirms deletion |
 
-Event types forwarded from Claude (mapped from `ClaudeEvent`):
-- `assistant:text-delta` — streaming text tokens
-- `assistant:tool-use` — tool name + input
-- `assistant:tool-result` — tool output
-- `assistant:thinking` — extended thinking content
-- `assistant:message-start` / `assistant:message-end` — bookend events
+**Claude event forwarding:** The `ClaudeEvent` type (`src/core/types.ts`) is loosely typed — `type: string`, `subtype?: string`, plus optional fields like `message`, `result`, `session_id`. The WS adapter forwards raw `ClaudeEvent` objects to the frontend without transformation. The frontend maps events to UI state based on `type`/`subtype` fields discovered at runtime. During implementation, run a test session and log the actual NDJSON events from `claude -p` to catalog the event vocabulary. The frontend should handle unknown event types gracefully (ignore them).
 
-Registers a push handler with PushRegistry so outbound `/send` calls can target `web-*` channels (pushes to all connected WebSocket clients for that channel).
+**Push handler:** Registers with PushRegistry for `web-*` channel prefix. When a push arrives, delivers to all connected WebSocket clients subscribed to that channel. If no clients are connected, the push returns `false` (same as Telegram when the bot can't reach a chat) — the message is not queued.
 
 **Auth (`src/auth.ts`)**
 
 - Credential store: `~/.bareclaw/users.json` — array of `{username, passwordHash}`
 - Password hashing: bcrypt
 - `POST /auth/login` — validates credentials, returns JWT
-- `POST /auth/register` — creates user; open until first user exists, then requires auth
+- `POST /auth/register` — creates user. Registration is open when no users exist (bootstrapping). Once the first user is created, registration requires a valid JWT (existing user must be logged in). The `BARECLAW_ALLOW_REGISTRATION` env var overrides this: set to `true` to always allow open registration, `false` to disable registration entirely.
 - JWT verified during WS handshake via query param
+- Auth routes are mounted on the Express app *before* the HTTP adapter router, so they are not subject to the HTTP adapter's origin-blocking middleware.
 
 **Conversation Metadata (`~/.bareclaw/conversations.json`)**
 
@@ -74,7 +70,7 @@ Registers a push handler with PushRegistry so outbound `/send` calls can target 
 }
 ```
 
-Separate from `.bareclaw-sessions.json` — sessions track Claude process state, conversations track user-facing metadata.
+Separate from `.bareclaw-sessions.json` — sessions track Claude process state, conversations track user-facing metadata. Written synchronously on every mutation (same pattern as `.bareclaw-sessions.json`). The `list-channels` WS message filters by the authenticated user's `userId` — users only see their own conversations.
 
 **Channel naming:** `web-<userId>-<slug>` where slug is derived from the title or auto-generated.
 
@@ -130,7 +126,7 @@ client/
 
 **Express changes (`src/index.ts`):**
 - Serve `client/dist/` as static files via `express.static`
-- Add `POST /auth/login` and `POST /auth/register` routes
+- Mount auth routes (`POST /auth/login`, `POST /auth/register`) *before* the HTTP adapter router so they bypass the origin-blocking middleware. The existing HTTP adapter's origin check and bearer token auth remain unchanged for `/message`, `/send`, `/restart`.
 - WebSocket upgrade handling via the `ws` library on the same HTTP server
 
 **WebSocket upgrade path:**
@@ -150,12 +146,12 @@ Browser → ws://host:port/ws?token=<jwt>
 - `bcrypt` — password hashing
 
 **New env vars:**
-- `BARECLAW_JWT_SECRET` — auto-generated on first run if not set
-- `BARECLAW_ALLOW_REGISTRATION` — defaults to `true` until first user exists, then `false`
+- `BARECLAW_JWT_SECRET` — if not set, auto-generated on first run and persisted to `~/.bareclaw/jwt-secret` so tokens survive restarts
+- `BARECLAW_ALLOW_REGISTRATION` — optional override. Set `true` to always allow open registration, `false` to disable entirely. If unset, registration is open when no users exist and closed otherwise.
 
-**Build workflow:**
-- `npm run dev` — BAREclaw server + Vite dev server (proxy mode)
-- `npm run build:client` — builds frontend to `client/dist/`
+**Build workflow** (all commands from root `package.json`, which orchestrates both server and client):
+- `npm run dev` — BAREclaw server + Vite dev server with proxy config (`/ws`, `/auth/*` proxied to Express on port 3000)
+- `npm run build:client` — installs client deps and builds frontend to `client/dist/`
 - Production: serves pre-built static files, no Vite needed
 
 ### What Doesn't Change
