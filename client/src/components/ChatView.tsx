@@ -6,6 +6,8 @@ import { useChatStore } from '../stores/chat';
 import { useChannelStore } from '../stores/channels';
 import type { WsClient } from '../lib/ws';
 
+const EMPTY_MESSAGES: never[] = [];
+
 interface ChatViewProps {
   wsClient: WsClient;
 }
@@ -15,7 +17,7 @@ export function ChatView({ wsClient }: ChatViewProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const activeChannel = useChannelStore((s) => s.activeChannel);
   const channels = useChannelStore((s) => s.channels);
-  const messages = useChatStore((s) => activeChannel ? s.messages[activeChannel] || [] : []);
+  const messages = useChatStore((s) => activeChannel ? s.messages[activeChannel] || EMPTY_MESSAGES : EMPTY_MESSAGES);
   const streamingId = useChatStore((s) => activeChannel ? s.streamingId[activeChannel] : null);
 
   const activeConv = channels.find((c) => c.channel === activeChannel);
