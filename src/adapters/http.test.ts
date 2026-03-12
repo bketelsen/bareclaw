@@ -227,7 +227,7 @@ describe('HTTP adapter', () => {
       const app = buildApp(makeConfig(), mockProcessManager(), push);
 
       await request(app, '/send', { channel: 'tg-123', text: 'hi' });
-      expect(push.send).toHaveBeenCalledWith('tg-123', 'hi');
+      expect(push.send).toHaveBeenCalledWith('tg-123', 'hi', undefined);
     });
   });
 
