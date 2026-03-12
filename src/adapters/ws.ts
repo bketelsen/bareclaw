@@ -17,7 +17,9 @@ type ClientMessage =
   | { type: 'list-channels' }
   | { type: 'create-channel'; title?: string }
   | { type: 'delete-channel'; channel: string }
-  | { type: 'rename-channel'; channel: string; title: string };
+  | { type: 'rename-channel'; channel: string; title: string }
+  | { type: 'admin-send'; channel: string; text: string }
+  | { type: 'admin-restart' };
 
 export function createWebSocketAdapter(
   server: Server,
@@ -130,6 +132,17 @@ export function createWebSocketAdapter(
         }
         conversations.rename(msg.channel, msg.title);
         client.ws.send(JSON.stringify({ type: 'channel-renamed', channel: msg.channel, title: msg.title }));
+        break;
+      }
+
+      case 'admin-send': {
+        const sent = await pushRegistry.send(msg.channel, msg.text);
+        client.ws.send(JSON.stringify({ type: 'admin-result', success: sent, channel: msg.channel }));
+        break;
+      }
+
+      case 'admin-restart': {
+        client.ws.send(JSON.stringify({ type: 'admin-result', success: true, action: 'restart' }));
         break;
       }
 
