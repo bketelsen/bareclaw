@@ -3,3 +3,5 @@ dist/
 .env
 .bareclaw-sessions.json
 .claude/settings.local.json
+client/dist/
+client/node_modules/
