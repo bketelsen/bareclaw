@@ -18,6 +18,8 @@ function makeConfig(overrides: Partial<Config> = {}): Config {
     telegramToken: undefined,
     allowedUsers: [],
     sessionFile: '.bareclaw-sessions.json',
+    jwtSecret: undefined,
+    allowRegistration: undefined,
     ...overrides,
   };
 }

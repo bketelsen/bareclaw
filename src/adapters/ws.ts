@@ -2,10 +2,10 @@ import { WebSocketServer, WebSocket, type RawData } from 'ws';
 import type { Server } from 'http';
 import type { IncomingMessage } from 'http';
 import type { Auth, TokenPayload } from '../auth.js';
-import type { ProcessManager, EventCallback } from '../core/process-manager.js';
+import type { ProcessManager, EventCallback, MessageContent } from '../core/process-manager.js';
 import type { ConversationStore } from '../core/conversations.js';
 import type { PushRegistry } from '../core/push-registry.js';
-import type { ChannelContext, ClaudeEvent } from '../core/types.js';
+import type { ChannelContext, ClaudeEvent, ContentBlock } from '../core/types.js';
 
 interface ClientState {
   username: string;
@@ -159,11 +159,12 @@ export function createWebSocketAdapter(
           return;
         }
 
-        const content = msg.content && Array.isArray(msg.content) ? msg.content : msg.text;
-        if (!content || (typeof content === 'string' && !content.trim())) {
+        const rawContent = msg.content && Array.isArray(msg.content) ? msg.content as ContentBlock[] : msg.text;
+        if (!rawContent || (typeof rawContent === 'string' && !rawContent.trim())) {
           client.ws.send(JSON.stringify({ type: 'error', channel: msg.channel, message: 'Empty message' }));
           return;
         }
+        const content: MessageContent = rawContent;
 
         const context: ChannelContext = {
           channel: msg.channel,
