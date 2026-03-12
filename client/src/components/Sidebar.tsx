@@ -3,6 +3,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useChannelStore } from '../stores/channels';
 import type { WsClient } from '../lib/ws';
+import { EditableTitle } from './EditableTitle';
 
 interface SidebarProps {
   wsClient: WsClient;
@@ -50,7 +51,14 @@ export function Sidebar({ wsClient, wsStatus, onLogout, onOpenAdmin }: SidebarPr
             onClick={() => setActiveChannel(conv.channel)}
           >
             <div className="min-w-0 flex-1">
-              <div className="truncate">{conv.title}</div>
+              <EditableTitle
+                title={conv.title}
+                onRename={(title) => {
+                  wsClient.send({ type: 'rename-channel', channel: conv.channel, title });
+                }}
+                className="text-sm"
+                inputClassName="w-full rounded border px-1 py-0.5 text-sm outline-none"
+              />
               <div className="truncate text-xs" style={{ color: 'var(--text-secondary)' }}>
                 {new Date(conv.lastMessageAt).toLocaleDateString()}
               </div>

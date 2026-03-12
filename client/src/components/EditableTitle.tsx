@@ -71,7 +71,7 @@ export function EditableTitle({ title, onRename, className = '', inputClassName 
   return (
     <span
       className={`group/title inline-flex items-center gap-1 ${className}`}
-      onClick={() => setEditing(true)}
+      onClick={(e) => { e.stopPropagation(); setEditing(true); }}
       style={{ cursor: 'text' }}
     >
       <span className="truncate">{title}</span>
