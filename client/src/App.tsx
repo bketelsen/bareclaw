@@ -55,21 +55,22 @@ export function App() {
         }
 
         // Map Claude events to UI state
+        const message = event.message as { content?: Array<Record<string, unknown>> } | undefined;
         if (event.type === 'assistant' && event.subtype === 'text') {
           // Text delta — append
-          const content = event.message?.content;
+          const content = message?.content;
           if (content && Array.isArray(content)) {
             for (const block of content) {
-              if (block.type === 'text' && block.text) {
+              if (block.type === 'text' && typeof block.text === 'string') {
                 chatStore.appendText(msg.channel, msgId, block.text);
               }
             }
           }
         } else if (event.type === 'assistant' && event.subtype === 'tool_use') {
-          const content = event.message?.content;
+          const content = message?.content;
           if (content && Array.isArray(content)) {
             for (const block of content) {
-              if (block.type === 'tool_use' && block.name) {
+              if (block.type === 'tool_use' && typeof block.name === 'string') {
                 chatStore.setToolActivity(msg.channel, msgId, { name: block.name });
               }
             }
