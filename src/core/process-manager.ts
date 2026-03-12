@@ -301,14 +301,15 @@ export class ProcessManager {
           const name = f.replace(/\.md$/, '');
           const content = readFileSync(resolve(memDir, f), 'utf-8').trim();
           sections.push(`### ${name}\n${content}`);
-        } catch {
-          // Skip unreadable files
+        } catch (err) {
+          console.warn(`[process-manager] skipping unreadable memory file ${f}: ${err}`);
         }
       }
       if (sections.length === 0) return '';
 
       return `## Shared Memory\n${sections.join('\n\n')}`;
-    } catch {
+    } catch (err) {
+      console.warn(`[process-manager] failed to load shared memory: ${err}`);
       return '';
     }
   }

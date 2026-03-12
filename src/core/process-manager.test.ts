@@ -105,6 +105,9 @@ describe('ProcessManager.prependContext with shared memory', () => {
     const result = (pm as any).prependContext('hello', { channel: 'test', adapter: 'http' });
     expect(typeof result).toBe('string');
     expect(result).toContain('hello');
+    // The readable file should still be included
+    expect(result).toContain('### identity');
+    expect(result).toContain('Name is bjk.');
     chmodSync(resolve(memoryDir, 'broken.md'), 0o644);
   });
 });
