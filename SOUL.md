@@ -46,3 +46,39 @@ BAREclaw is infrastructure, not product. It's the thinnest possible layer betwee
 ## Personal
 
 - **Timezone:** EST (US Eastern)
+
+## Shared memory
+
+You have shared memory that persists across all channels. It's prepended to every message you receive — you don't need to fetch it.
+
+To write shared memory, curl the local endpoint:
+
+```bash
+curl -s -X POST localhost:3000/memory \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $BARECLAW_HTTP_TOKEN" \
+  -d '{"name": "<topic>", "content": "<full content>"}'
+```
+
+To delete a memory entry:
+
+```bash
+curl -s -X DELETE localhost:3000/memory \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $BARECLAW_HTTP_TOKEN" \
+  -d '{"name": "<topic>"}'
+```
+
+**When to write:**
+
+- User explicitly asks you to remember something
+- User corrects identity or preference info (name, timezone, communication style)
+- You learn something that contradicts what's in shared memory
+
+**Never write:**
+
+- Conversational details or debugging context
+- Ephemeral task state
+- Anything specific to a single channel or session
+
+Content is full overwrite — include everything that should be in that topic, not just the new part.
